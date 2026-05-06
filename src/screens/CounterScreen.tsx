@@ -6,7 +6,16 @@ import { CounterButton } from "../components/CounterButton";
 import { useCounterLogic } from "../hooks/useCounterLogic";
 
 export function CounterScreen() {
-  const { count, increment, decrement, reset } = useCounterLogic();
+  const {
+    count,
+    increment,
+    decrement,
+    reset,
+    startFastIncrement,
+    stopFastIncrement,
+    startFastDecrement,
+    stopFastDecrement,
+  } = useCounterLogic();
 
   return (
     <View style={styles.container}>
@@ -14,13 +23,23 @@ export function CounterScreen() {
       <Text style={styles.count}>{count}</Text>
 
       <View style={styles.buttonRow}>
-        <CounterButton label="Increment" onPress={increment} />
-        <CounterButton label="Decrement" onPress={decrement} />
+        <CounterButton
+          label="Increment"
+          onPress={increment}
+          onLongPress={startFastIncrement}
+          onPressOut={stopFastIncrement}
+        />
+        <CounterButton
+          label="Decrement"
+          onPress={decrement}
+          onLongPress={startFastDecrement}
+          onPressOut={stopFastDecrement}
+        />
         <CounterButton label="Reset" onPress={reset} />
       </View>
 
       <Text style={styles.hint}>
-        Every 5th increment adds 5. If idle for 4 seconds, counter auto-decrements.
+        Every 5th increment adds 5. Long-press increment/decrement to move faster. The counter auto-decrements after 4 seconds of inactivity.
       </Text>
       <StatusBar style="auto" />
     </View>

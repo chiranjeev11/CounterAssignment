@@ -4,11 +4,24 @@ import { Pressable, StyleSheet, Text } from "react-native";
 type CounterButtonProps = {
   label: string;
   onPress: () => void;
+  onLongPress?: () => void;
+  onPressOut?: () => void;
 };
 
-export const CounterButton = memo(function CounterButton({ label, onPress }: CounterButtonProps) {
+export const CounterButton = memo(function CounterButton({
+  label,
+  onPress,
+  onLongPress,
+  onPressOut,
+}: CounterButtonProps) {
   return (
-    <Pressable onPress={onPress} style={styles.button}>
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      onPressOut={onPressOut}
+      delayLongPress={260}
+      style={styles.button}
+    >
       <Text style={styles.buttonText}>{label}</Text>
     </Pressable>
   );

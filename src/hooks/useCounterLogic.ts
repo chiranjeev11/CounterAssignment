@@ -3,12 +3,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 const INACTIVITY_TIMEOUT_MS = 4000;
 const AUTO_DECREMENT_INTERVAL_MS = 1000;
 const GRADUAL_RESET_INTERVAL_MS = 80;
+const FAST_PRESS_INTERVAL_MS = 140;
 
 export type CounterLogic = {
   count: number;
   increment: () => void;
   decrement: () => void;
   reset: () => void;
+  startFastIncrement: () => void;
+  stopFastIncrement: () => void;
+  startFastDecrement: () => void;
+  stopFastDecrement: () => void;
 };
 
 export function useCounterLogic(): CounterLogic {
@@ -19,6 +24,10 @@ export function useCounterLogic(): CounterLogic {
   const inactivityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoDecrementIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const gradualResetIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fastIncrementIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fastDecrementIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const suppressNextIncrementTapRef = useRef(false);
+  const suppressNextDecrementTapRef = useRef(false);
 
   const clearAutoDecrement = useCallback(() => {
     if (autoDecrementIntervalRef.current) {
@@ -42,6 +51,20 @@ export function useCounterLogic(): CounterLogic {
     setIsResetting(false);
   }, []);
 
+  const clearFastIncrement = useCallback(() => {
+    if (fastIncrementIntervalRef.current) {
+      clearInterval(fastIncrementIntervalRef.current);
+      fastIncrementIntervalRef.current = null;
+    }
+  }, []);
+
+  const clearFastDecrement = useCallback(() => {
+    if (fastDecrementIntervalRef.current) {
+      clearInterval(fastDecrementIntervalRef.current);
+      fastDecrementIntervalRef.current = null;
+    }
+  }, []);
+
   const restartInactivityTimer = useCallback(() => {
     clearInactivityTimeout();
     clearAutoDecrement();
@@ -59,7 +82,7 @@ export function useCounterLogic(): CounterLogic {
     }
   }, [clearGradualReset, isResetting]);
 
-  const increment = useCallback(() => {
+  const performIncrement = useCallback(() => {
     stopResetIfRunning();
     setIncrementPressCount((prevPressCount) => {
       const nextPressCount = prevPressCount + 1;
@@ -71,16 +94,34 @@ export function useCounterLogic(): CounterLogic {
     restartInactivityTimer();
   }, [restartInactivityTimer, stopResetIfRunning]);
 
-  const decrement = useCallback(() => {
+  const increment = useCallback(() => {
+    if (suppressNextIncrementTapRef.current) {
+      suppressNextIncrementTapRef.current = false;
+      return;
+    }
+    performIncrement();
+  }, [performIncrement]);
+
+  const performDecrement = useCallback(() => {
     stopResetIfRunning();
     setCount((prev) => Math.max(0, prev - 1));
     restartInactivityTimer();
   }, [restartInactivityTimer, stopResetIfRunning]);
 
+  const decrement = useCallback(() => {
+    if (suppressNextDecrementTapRef.current) {
+      suppressNextDecrementTapRef.current = false;
+      return;
+    }
+    performDecrement();
+  }, [performDecrement]);
+
   const reset = useCallback(() => {
     clearAutoDecrement();
     clearInactivityTimeout();
     clearGradualReset();
+    clearFastIncrement();
+    clearFastDecrement();
 
     setIsResetting(true);
     gradualResetIntervalRef.current = setInterval(() => {
@@ -92,7 +133,33 @@ export function useCounterLogic(): CounterLogic {
         return prev - 1;
       });
     }, GRADUAL_RESET_INTERVAL_MS);
-  }, [clearAutoDecrement, clearGradualReset, clearInactivityTimeout]);
+  }, [clearAutoDecrement, clearFastDecrement, clearFastIncrement, clearGradualReset, clearInactivityTimeout]);
+
+  const startFastIncrement = useCallback(() => {
+    clearFastIncrement();
+    suppressNextIncrementTapRef.current = true;
+    performIncrement();
+    fastIncrementIntervalRef.current = setInterval(() => {
+      performIncrement();
+    }, FAST_PRESS_INTERVAL_MS);
+  }, [clearFastIncrement, performIncrement]);
+
+  const stopFastIncrement = useCallback(() => {
+    clearFastIncrement();
+  }, [clearFastIncrement]);
+
+  const startFastDecrement = useCallback(() => {
+    clearFastDecrement();
+    suppressNextDecrementTapRef.current = true;
+    performDecrement();
+    fastDecrementIntervalRef.current = setInterval(() => {
+      performDecrement();
+    }, FAST_PRESS_INTERVAL_MS);
+  }, [clearFastDecrement, performDecrement]);
+
+  const stopFastDecrement = useCallback(() => {
+    clearFastDecrement();
+  }, [clearFastDecrement]);
 
   useEffect(() => {
     restartInactivityTimer();
@@ -100,9 +167,27 @@ export function useCounterLogic(): CounterLogic {
       clearAutoDecrement();
       clearInactivityTimeout();
       clearGradualReset();
+      clearFastIncrement();
+      clearFastDecrement();
     };
-  }, [clearAutoDecrement, clearGradualReset, clearInactivityTimeout, restartInactivityTimer]);
+  }, [
+    clearAutoDecrement,
+    clearFastDecrement,
+    clearFastIncrement,
+    clearGradualReset,
+    clearInactivityTimeout,
+    restartInactivityTimer,
+  ]);
 
-  return { count, increment, decrement, reset };
+  return {
+    count,
+    increment,
+    decrement,
+    reset,
+    startFastIncrement,
+    stopFastIncrement,
+    startFastDecrement,
+    stopFastDecrement,
+  };
 }
 
