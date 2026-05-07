@@ -97,24 +97,6 @@ npx expo start --dev-client -c
 - The advanced TurboModule implementation in this repository is **Android-first**.
 - iOS TurboModule implementation is not included in the current submission.
 
-### iOS implementation feasibility
-
-The same `NativeCounter` TurboModule can be implemented for iOS as well, but it requires native iOS files and a custom dev client build.
-
-High-level iOS additions:
-
-- Native module implementation in Swift/Objective-C++
-- iOS module registration and codegen integration
-- Event emission wiring matching `NativeCounter:onValueChanged`
-- Build and test through EAS iOS build (or local Xcode)
-
-### Why this cannot be tested in Expo Go (iOS)
-
-- Expo Go includes only prebuilt native modules bundled by Expo.
-- Custom TurboModules are not part of Expo Go binary.
-- `TurboModuleRegistry.getEnforcing("NativeCounter")` fails unless the app binary is rebuilt with the custom module.
-- For iOS, testing requires a **custom dev client** or a standalone iOS build.
-
 ## Project structure
 
 - `App.tsx` - app entry and screen mounting
