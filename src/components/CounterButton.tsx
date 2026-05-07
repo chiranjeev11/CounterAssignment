@@ -1,5 +1,5 @@
 import React, { memo } from "react";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { StyleSheet, Text, TouchableOpacity } from "react-native";
 
 type CounterButtonProps = {
   label: string;
@@ -15,15 +15,16 @@ export const CounterButton = memo(function CounterButton({
   onPressOut,
 }: CounterButtonProps) {
   return (
-    <Pressable
+    <TouchableOpacity
       onPress={onPress}
       onLongPress={onLongPress}
       onPressOut={onPressOut}
       delayLongPress={260}
+      activeOpacity={0.6}
       style={styles.button}
     >
       <Text style={styles.buttonText}>{label}</Text>
-    </Pressable>
+    </TouchableOpacity>
   );
 });
 

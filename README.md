@@ -18,6 +18,7 @@ The project focuses on clean state management, predictable behavior, and minimal
 - Expo
 - TypeScript
 - React Hooks (`useState`, `useEffect`, `useRef`, `useCallback`)
+- React Native New Architecture (TurboModule)
 
 ## Getting started
 
@@ -25,7 +26,8 @@ The project focuses on clean state management, predictable behavior, and minimal
 
 - Node.js (LTS recommended)
 - npm
-- Expo Go app on a mobile device
+- Expo Go app on a mobile device (for JS-only flow)
+- EAS CLI / Expo dev client (for TurboModule flow)
 
 ### Run locally
 
@@ -36,16 +38,96 @@ npx expo start
 
 Then scan the QR code using Expo Go.
 
+## TurboModule implementation (Advanced)
+
+The project also includes an Android TurboModule implementation for the advanced requirement.
+
+### Native module overview
+
+- Module name: `NativeCounter`
+- Android implementation:
+  - `android/app/src/main/java/com/anonymous/CounterAssignment/NativeCounterModule.kt`
+  - `android/app/src/main/java/com/anonymous/CounterAssignment/NativeCounterPackage.kt`
+- TurboModule spec:
+  - `specs/NativeCounter.ts`
+- JS adapter:
+  - `src/native/NativeCounter.ts`
+
+### Methods exposed by TurboModule
+
+- `getValue()`
+- `increment()`
+- `decrement()`
+- `reset()`
+- `configureInactivity(timeoutMs, intervalMs)`
+- `clearInactivity()`
+- `startGradualReset(intervalMs)`
+- `stopGradualReset()`
+
+### Data flow (JS <-> Native)
+
+1. UI interactions happen in `CounterScreen`.
+2. `useCounterLogic` invokes methods through `src/native/NativeCounter.ts`.
+3. Native module updates internal counter state.
+4. Native emits `NativeCounter:onValueChanged`.
+5. JS subscribes to the event and updates UI state.
+
+This keeps the UI layer mostly presentational while native code owns business state transitions.
+
+### JS vs native implementation differences
+
+- JS implementation: timer/state logic runs in React hook.
+- TurboModule implementation: core logic (increment rules, inactivity behavior, gradual reset orchestration) runs in native Android module.
+- JS in Turbo mode primarily handles:
+  - rendering,
+  - gesture wiring,
+  - event subscription and display updates.
+
+### Running TurboModule build
+
+TurboModule does not run in Expo Go. Use a dev client:
+
+```bash
+npx eas-cli build -p android --profile development
+npx expo start --dev-client -c
+```
+
+### Current scope and limitation
+
+- The advanced TurboModule implementation in this repository is **Android-first**.
+- iOS TurboModule implementation is not included in the current submission.
+
+### iOS implementation feasibility
+
+The same `NativeCounter` TurboModule can be implemented for iOS as well, but it requires native iOS files and a custom dev client build.
+
+High-level iOS additions:
+
+- Native module implementation in Swift/Objective-C++
+- iOS module registration and codegen integration
+- Event emission wiring matching `NativeCounter:onValueChanged`
+- Build and test through EAS iOS build (or local Xcode)
+
+### Why this cannot be tested in Expo Go (iOS)
+
+- Expo Go includes only prebuilt native modules bundled by Expo.
+- Custom TurboModules are not part of Expo Go binary.
+- `TurboModuleRegistry.getEnforcing("NativeCounter")` fails unless the app binary is rebuilt with the custom module.
+- For iOS, testing requires a **custom dev client** or a standalone iOS build.
+
 ## Project structure
 
 - `App.tsx` - app entry and screen mounting
 - `src/screens/CounterScreen.tsx` - screen UI and button wiring
 - `src/hooks/useCounterLogic.ts` - core counter behavior and timer logic
 - `src/components/CounterButton.tsx` - reusable button component
+- `specs/NativeCounter.ts` - TurboModule contract
+- `src/native/NativeCounter.ts` - JS-native adapter for TurboModule
+- `android/.../NativeCounterModule.kt` - Android TurboModule implementation
 
 ## Implementation notes
 
-- Business logic is kept in a dedicated hook (`useCounterLogic`) so UI remains focused on rendering.
-- Timer handles are stored in refs to avoid unnecessary re-renders.
-- Functional state updates are used to keep behavior correct during rapid interactions.
-- All timers are cleaned up during reset/unmount to prevent leaks and duplicate updates.
+- UI and logic are separated (`CounterScreen` vs `useCounterLogic`) for clarity.
+- Button interactions support both tap and long-press with controlled repeat behavior.
+- Native module emits value updates to keep JS view state in sync.
+- Cleanup is handled for timers/listeners to avoid leaks and duplicate updates.

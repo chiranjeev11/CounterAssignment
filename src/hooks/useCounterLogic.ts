@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { nativeCounter, subscribeToNativeCounterValue } from "../native/NativeCounter";
 
 const INACTIVITY_TIMEOUT_MS = 4000;
 const AUTO_DECREMENT_INTERVAL_MS = 1000;
-const GRADUAL_RESET_INTERVAL_MS = 80;
+const GRADUAL_RESET_INTERVAL_MS = 90;
 const FAST_PRESS_INTERVAL_MS = 140;
 
 export type CounterLogic = {
@@ -18,36 +19,15 @@ export type CounterLogic = {
 
 export function useCounterLogic(): CounterLogic {
   const [count, setCount] = useState(0);
-  const [incrementPressCount, setIncrementPressCount] = useState(0);
   const [isResetting, setIsResetting] = useState(false);
 
-  const inactivityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const autoDecrementIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const gradualResetIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fastIncrementIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fastDecrementIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const suppressNextIncrementTapRef = useRef(false);
   const suppressNextDecrementTapRef = useRef(false);
 
-  const clearAutoDecrement = useCallback(() => {
-    if (autoDecrementIntervalRef.current) {
-      clearInterval(autoDecrementIntervalRef.current);
-      autoDecrementIntervalRef.current = null;
-    }
-  }, []);
-
-  const clearInactivityTimeout = useCallback(() => {
-    if (inactivityTimeoutRef.current) {
-      clearTimeout(inactivityTimeoutRef.current);
-      inactivityTimeoutRef.current = null;
-    }
-  }, []);
-
   const clearGradualReset = useCallback(() => {
-    if (gradualResetIntervalRef.current) {
-      clearInterval(gradualResetIntervalRef.current);
-      gradualResetIntervalRef.current = null;
-    }
+    nativeCounter.stopGradualReset();
     setIsResetting(false);
   }, []);
 
@@ -65,17 +45,6 @@ export function useCounterLogic(): CounterLogic {
     }
   }, []);
 
-  const restartInactivityTimer = useCallback(() => {
-    clearInactivityTimeout();
-    clearAutoDecrement();
-
-    inactivityTimeoutRef.current = setTimeout(() => {
-      autoDecrementIntervalRef.current = setInterval(() => {
-        setCount((prev) => Math.max(0, prev - 1));
-      }, AUTO_DECREMENT_INTERVAL_MS);
-    }, INACTIVITY_TIMEOUT_MS);
-  }, [clearAutoDecrement, clearInactivityTimeout]);
-
   const stopResetIfRunning = useCallback(() => {
     if (isResetting) {
       clearGradualReset();
@@ -84,15 +53,9 @@ export function useCounterLogic(): CounterLogic {
 
   const performIncrement = useCallback(() => {
     stopResetIfRunning();
-    setIncrementPressCount((prevPressCount) => {
-      const nextPressCount = prevPressCount + 1;
-      const incrementBy = nextPressCount % 5 === 0 ? 5 : 1;
-
-      setCount((prev) => prev + incrementBy);
-      return nextPressCount;
-    });
-    restartInactivityTimer();
-  }, [restartInactivityTimer, stopResetIfRunning]);
+    const nextValue = nativeCounter.increment();
+    setCount(nextValue);
+  }, [stopResetIfRunning]);
 
   const increment = useCallback(() => {
     if (suppressNextIncrementTapRef.current) {
@@ -104,9 +67,9 @@ export function useCounterLogic(): CounterLogic {
 
   const performDecrement = useCallback(() => {
     stopResetIfRunning();
-    setCount((prev) => Math.max(0, prev - 1));
-    restartInactivityTimer();
-  }, [restartInactivityTimer, stopResetIfRunning]);
+    const nextValue = nativeCounter.decrement();
+    setCount(nextValue);
+  }, [stopResetIfRunning]);
 
   const decrement = useCallback(() => {
     if (suppressNextDecrementTapRef.current) {
@@ -117,23 +80,13 @@ export function useCounterLogic(): CounterLogic {
   }, [performDecrement]);
 
   const reset = useCallback(() => {
-    clearAutoDecrement();
-    clearInactivityTimeout();
     clearGradualReset();
     clearFastIncrement();
     clearFastDecrement();
 
     setIsResetting(true);
-    gradualResetIntervalRef.current = setInterval(() => {
-      setCount((prev) => {
-        if (prev <= 0) {
-          clearGradualReset();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, GRADUAL_RESET_INTERVAL_MS);
-  }, [clearAutoDecrement, clearFastDecrement, clearFastIncrement, clearGradualReset, clearInactivityTimeout]);
+    nativeCounter.startGradualReset(GRADUAL_RESET_INTERVAL_MS);
+  }, [clearFastDecrement, clearFastIncrement, clearGradualReset]);
 
   const startFastIncrement = useCallback(() => {
     clearFastIncrement();
@@ -162,21 +115,23 @@ export function useCounterLogic(): CounterLogic {
   }, [clearFastDecrement]);
 
   useEffect(() => {
-    restartInactivityTimer();
+    setCount(nativeCounter.getValue());
+    nativeCounter.configureInactivity(INACTIVITY_TIMEOUT_MS, AUTO_DECREMENT_INTERVAL_MS);
+    const unsubscribe = subscribeToNativeCounterValue((payload) => {
+      setCount(payload.value);
+      setIsResetting(payload.isGradualResetActive);
+    });
     return () => {
-      clearAutoDecrement();
-      clearInactivityTimeout();
+      unsubscribe();
+      nativeCounter.clearInactivity();
       clearGradualReset();
       clearFastIncrement();
       clearFastDecrement();
     };
   }, [
-    clearAutoDecrement,
     clearFastDecrement,
     clearFastIncrement,
     clearGradualReset,
-    clearInactivityTimeout,
-    restartInactivityTimer,
   ]);
 
   return {
